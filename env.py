@@ -47,7 +47,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
     """A class to represent the game engine."""
     def __init__(self, num_players: int = 2):
         self.num_players = num_players
-        self._state = None
+        self._state: SkipBoState = None # type: ignore # this will be set by the mutator before anything gets called
     
     @property
     def agents(self) -> List[int]:
@@ -63,6 +63,14 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
     def state(self) -> SkipBoState:
         """Current state of the game."""
         return self._state
+    
+    @property
+    def config(self) -> Dict[str, Any]:
+        return {}
+    
+    @config.setter
+    def config(self, value: Dict[str, Any]):
+        pass
     
     def is_action_valid(self, action: SkipBoAction, state: SkipBoState) -> bool:
         """Check if an action is valid."""
@@ -146,7 +154,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
         # do we need to remove a completed build pile?
         if card_destination <= 3 and len(self._state.build_piles[card_destination]) == 12:
             # if the build pile is complete, remove it from the game
-            self._state.completed_build_piles.append(self._state.build_piles[card_destination])
+            self._state.completed_build_piles += self._state.build_piles[card_destination]
             self._state.build_piles[card_destination] = []
         # do we need to draw new cards because we emptied our hand?
         if ps.hand.count(0) == 5:
@@ -200,8 +208,19 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
         """Reset the engine with an optional initial state"""
         self._state = initial_state if initial_state is not None else self.create_base_state()
 
+    def set_state(self, desired_state, shared_info):
+        """Set the state of the game to a desired state."""
+        self._state = desired_state
+        return self._state
+    
+    def close(self):
+        """Close the engine."""
+        pass
+
     def __str__(self):
         """human-readable representation of the game state"""
+        if self._state is None:
+            return "No game state set."
         result = f"It's player {self._state.current_player}'s turn.\n"
         result += f"Current player hand: {self._state.player_states[self._state.current_player].hand}\n"
         for i, player_state in enumerate(self._state.player_states):
@@ -242,10 +261,10 @@ class SkipBoMutator(StateMutator[SkipBoState]):
         state.invalid_actions_count = 0
         state.last_step = None
 
-class SkipBoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, np.ndarray]):
+class SkipBoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
     """A class to represent the observation builder."""
     def get_obs_space(self, agent):
-        return np.zeros(33, dtype=np.int32)
+        return 'real', 33
     
     def reset(self, agents, initial_state, shared_info):
         pass
@@ -255,28 +274,34 @@ class SkipBoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, np.ndarray]):
         for agent in agents:
             ps = state.player_states[agent]
             nps = state.player_states[(agent + 1) % len(state.player_states)]
-            obs_py = [
+            obs_py: list[int] = [
                 ps.stock_pile[-1], # len 1
                 len(ps.stock_pile), # len 1
-                ps.hand, # len 5
-                # len(build_pile) will give the effective value of each pile
-                [len(build_pile) for build_pile in state.build_piles], # len 4
-                # the top 3 cards of each discard pile, left-padded with 0s, and the size of each pile
-                [[([0] * (3-len(discard_pile)) + discard_pile[-3:]), len(discard_pile)] for discard_pile in ps.discard_piles], # len 16
+            ]
+            obs_py += ps.hand # len 5
+            # len(build_pile) will give the effective value of each pile
+            obs_py += [len(build_pile) for build_pile in state.build_piles] # len 4
+            # the top 3 cards of each discard pile, left-padded with 0s, and the size of each pile
+            discards = []
+            for discard_pile in ps.discard_piles:
+                discards += [0] * (3-len(discard_pile)) + discard_pile[-3:] + [len(discard_pile)]
+            obs_py += discards # len 16
+            obs_py += [
                 nps.stock_pile[-1], # len 1
-                len(nps.stock_pile), # len 1
-                # the top card of each of nps's discard piles
-                [discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in nps.discard_piles] # len 4
-            ] # len 33
-            obs = np.array(obs_py, dtype=np.int32).flatten()
+                len(nps.stock_pile)
+            ] # len 1
+            # the top card of each of nps's discard piles
+            obs_py += [discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in nps.discard_piles] # len 4
+            # total len 33
+            obs = np.array(obs_py, dtype=np.int32)
             observations[agent] = obs
 
         return observations
 
-class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, np.ndarray]):
+class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
     """A class to represent the action parser."""
     def get_action_space(self, agent):
-        return np.zeros(2, dtype=np.int8)  
+        return 'real', 2
     def reset(self, agents, initial_state, shared_info):
         pass
     def parse_actions(self, actions, state, shared_info):
@@ -284,8 +309,8 @@ class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState
         for agent in actions:
             action = actions[agent]
             parsed_action = SkipBoAction(
-                card_source=action[0],
-                card_destination=action[1]
+                card_source=int(action[0]),
+                card_destination=int(action[1])
             )
             parsed_actions[agent] = parsed_action
         return parsed_actions
@@ -294,8 +319,11 @@ class SkipBoTerminalCondition(DoneCondition[int, SkipBoState]):
     """Determines when episodes end naturally (the game has been won)"""
     def reset(self, agents, initial_state, shared_info):
         pass
-    def is_done(self, agents, state, shared_info):
+    def _is_done(self, agents, state, shared_info):
         return any([len(player_state.stock_pile) == 0 for player_state in state.player_states])
+    def is_done(self, agents: List[int], state: SkipBoState, shared_info: Dict[str, Any]) -> Dict[int, bool]:
+        done = self._is_done(agents, state, shared_info)
+        return {agent: done for agent in agents}
 
 class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
     """Determines when episodes are cut short (time limit reached, out of cards)"""
@@ -306,7 +334,7 @@ class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
     def reset(self, agents, initial_state, shared_info):
         pass
     
-    def is_done(self, agents, state, shared_info):
+    def _is_done(self, agents, state, shared_info):
         # if the game has been going on for too long
         if state.num_turns >= self.max_turns:
             return True
@@ -317,3 +345,8 @@ class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
         if state.invalid_actions_count >= 5:
             return True
         return False
+    
+    def is_done(self, agents: List[int], state: SkipBoState, shared_info: Dict[str, Any]) -> Dict[int, bool]:
+        # check if the game is done
+        done = self._is_done(agents, state, shared_info)
+        return {agent: done for agent in agents}

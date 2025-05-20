@@ -1,17 +1,18 @@
-from env import SkipBoEngine, SkipBoMutator, SkipBoAction, SkipBoState, SkipBoTerminalCondition
+from env import SkipBoEngine, SkipBoMutator, SkipBoAction, SkipBoState, SkipBoTerminalCondition, SkipBoObsBuilder
 from rewards import SkipBoReward
 
 # a quick-n-dirty interface to allow a human to play the game thru the terminal
 
 def show_rewards(rewarder: SkipBoReward, state: SkipBoState, did_terminate: bool):
-    rewards = rewarder.get_rewards(range(len(state.player_states)), state, did_terminate, False, {})
+    num_players = len(state.player_states)
+    rewards = rewarder.get_rewards(list(range(num_players)), state, {i: did_terminate for i in range(num_players)}, {i: False for i in range(num_players)}, {})
     print(f"The rewards for that turn are: {rewards}")
 
 def human_play():
     """A function to allow a human to play the game."""
     num_players = int(input("Number of players: "))
-    if num_players < 2 or num_players > 4:
-        print("Invalid number of players. Must be between 2 and 4.")
+    if num_players < 1 or num_players > 4:
+        print("Invalid number of players. Must be between 1 and 4.")
         return
     stock_pile_size = int(input("Stock pile size: "))
     engine = SkipBoEngine(num_players)
@@ -21,15 +22,19 @@ def human_play():
     mutator.apply(initial_state, {})
     engine.reset(initial_state)
     rewarder = SkipBoReward()
+    obs_builder = SkipBoObsBuilder()
     while True:
         print(engine)
+        print("Observation: ", end="")
+        obs = obs_builder.build_obs(list(range(num_players)), engine.state, {})
+        print(obs)
         card_source = int(input("Card source (stock pile, hand, discards): "))
         card_dest = int(input("Card destination (build piles, discards): "))
         print()
         action = SkipBoAction(card_source=card_source, card_destination=card_dest)
         if not engine.is_action_valid(action, engine.state):
             print("\033[31mInvalid action.\033[0m")
-        engine.step([action]*num_players, {})
+        engine.step({i: action for i in range(num_players)}, {})
         if terminator.is_done([], engine.state, {}):
             print("Game over!")
             print("Final state:")
