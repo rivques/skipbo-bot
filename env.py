@@ -14,26 +14,34 @@ Card = int
 @dataclass
 class PlayerState:
     """A class to represent the state of a player in the game."""
-    hand: List[int] # up to 5 cards
-    stock_pile: List[int] # all the cards in the stock pile. index 0 is the bottom card
-    discard_piles: List[List[int]] # 4 discard piles. index 0 is the bottom card. Max 20.
-
-@dataclass
-class SkipBoState:
-    """A class to represent the state of the game."""
-    player_states: List[PlayerState]
-    current_player: int
-    build_piles: List[List[int]] # 4 build piles. index 0 is the bottom card
-    draw_pile: List[int] # the deck of cards. index 0 is the bottom card 
-    completed_build_piles: List[int] # the completed build piles, together.
-    num_turns: int # the number of turns taken so far
-    invalid_actions_count: int # the number of invalid actions taken in a row so far
+    hand: List[Card] # up to 5 cards
+    stock_pile: List[Card] # all the cards in the stock pile. index 0 is the bottom card
+    discard_piles: List[List[Card]] # 4 discard piles. index 0 is the bottom card. Max 20.
 
 @dataclass
 class SkipBoAction:
     """A class to represent an action in the game."""
     card_source: int # 0: stock pile, 1-5: hand, 6-9: discard piles
     card_destination: int # 0-3: build piles, 4-7: discard piles
+
+@dataclass
+class SkipBoLastStep:
+    """A class to represent the last step taken in the game."""
+    action: SkipBoAction
+    taken_by: int
+    was_valid: bool
+
+@dataclass
+class SkipBoState:
+    """A class to represent the state of the game."""
+    player_states: List[PlayerState]
+    current_player: int
+    build_piles: List[List[Card]] # 4 build piles. index 0 is the bottom card
+    draw_pile: List[Card] # the deck of cards. index 0 is the bottom card 
+    completed_build_piles: List[Card] # the completed build piles, together.
+    num_turns: int # the number of turns taken so far
+    invalid_actions_count: int # the number of invalid actions taken in a row so far
+    last_step: Optional[SkipBoLastStep]
 
 class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
     """A class to represent the game engine."""
@@ -94,10 +102,17 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
         # first, pick out the action whose turn it is
         current_player = self._state.current_player
         action = actions[current_player]
+        self._state.last_step = SkipBoLastStep(
+            action=action,
+            taken_by=current_player,
+            was_valid=True
+        )
         # check if the action is valid
         if not self.is_action_valid(action, self._state):
             # if the action is invalid, increment the invalid actions count
             self._state.invalid_actions_count += 1
+            # set the last step to invalid
+            self._state.last_step.was_valid = False
             # if the action is invalid, return the state without changing it further
             return self._state
         # if the action is valid, reset the invalid actions count
@@ -177,7 +192,8 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             draw_pile=[],
             completed_build_piles=[],
             num_turns=0,
-            invalid_actions_count=0
+            invalid_actions_count=0,
+            last_step=None
         )
     
     def reset(self, initial_state: Optional[SkipBoState] = None) -> None:
@@ -224,6 +240,7 @@ class SkipBoMutator(StateMutator[SkipBoState]):
         state.completed_build_piles = []
         state.num_turns = 0
         state.invalid_actions_count = 0
+        state.last_step = None
 
 class SkipBoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, np.ndarray]):
     """A class to represent the observation builder."""
@@ -259,7 +276,7 @@ class SkipBoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, np.ndarray]):
 class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, np.ndarray]):
     """A class to represent the action parser."""
     def get_action_space(self, agent):
-        return np.zeros(2, dtype=np.int32)  
+        return np.zeros(2, dtype=np.int8)  
     def reset(self, agents, initial_state, shared_info):
         pass
     def parse_actions(self, actions, state, shared_info):
@@ -295,5 +312,8 @@ class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
             return True
         # if there aren't enough cards in the draw pile + completed build piles
         if len(state.draw_pile) + len(state.completed_build_piles) < 20:
+            return True
+        # if the invalid actions count is too high
+        if state.invalid_actions_count >= 5:
             return True
         return False
