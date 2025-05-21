@@ -3,16 +3,16 @@ import os
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 def build_rlgym_v2_env():
-    from env import SkipBoMutator, CallistoObsBuilder, SkipBoActionParser, SkipBoEngine, SkipBoTerminalCondition, SkipBoTruncationCondition
-    from rewards import CallistoReward
+    from env import SkipBoMutator, CallistoObsBuilder, AmaltheaActionParser, SkipBoEngine, SkipBoTerminalCondition, SkipBoTruncationCondition
+    from rewards import AmaltheaReward
 
     from rlgym.api import RLGym
 
     return RLGym(
         state_mutator=SkipBoMutator(2, 20),
         obs_builder=CallistoObsBuilder(),
-        action_parser=SkipBoActionParser(),
-        reward_fn=CallistoReward(),
+        action_parser=AmaltheaActionParser(),
+        reward_fn=AmaltheaReward(),
         transition_engine=SkipBoEngine(2),
         termination_cond=SkipBoTerminalCondition(),
         truncation_cond=SkipBoTruncationCondition(),
@@ -81,7 +81,7 @@ if __name__ == "__main__":
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
                     project="skipbo",
                     group="rlgym-learn-prod",
-                    run="callisto"
+                    run="amalthea",
                 ),
             )
 
@@ -100,7 +100,7 @@ if __name__ == "__main__":
                     (PyAnySerdeType.STRING(), PyAnySerdeType.INT())
                 ),
             ),
-            timestep_limit=20_100_000,  # Train for 20M steps
+            timestep_limit=30_100_000,  # Train for 30M steps
         ),
         process_config=ProcessConfigModel(
             n_proc=128,  # Number of processes to spawn to run environments. Increasing will use more RAM but should increase steps per second, up to a point

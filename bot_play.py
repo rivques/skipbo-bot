@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import torch
 import numpy as np
 
-from env import CallistoObsBuilder, GanymedeObsBuilder, SkipBoAction, SkipBoActionParser, IoObsBuilder, SkipBoEngine, SkipBoMutator, SkipBoState, SkipBoTerminalCondition
+from env import AmaltheaActionParser, CallistoObsBuilder, GanymedeObsBuilder, SkipBoAction, GeneralActionParser, IoObsBuilder, SkipBoEngine, SkipBoMutator, SkipBoState, SkipBoTerminalCondition
 
 from rlgym.api import ObsBuilder, ActionParser
 from rlgym_learn_algos.ppo.discrete_actor import DiscreteFF
@@ -36,7 +36,7 @@ class Agent:
         # Convert the observation to the format expected by the model
         obs = self.obs_builder.build_obs([0], state, {})[0]
         out, weights = self.model.get_action([0], [obs])
-        action = self.action_parser.parse_actions({0: out[0]}, None, {})[0]
+        action = self.action_parser.parse_actions({0: out[0]}, state, {})[0]
         print(f"action: {action}")
         return action
 
@@ -47,7 +47,7 @@ configs = {
         n_actions=60,
         layer_sizes=[256, 256, 256],
         obs_builder=IoObsBuilder(),
-        action_parser=SkipBoActionParser(),
+        action_parser=GeneralActionParser(),
         description="The first agent successfully trained. However, it only knows how to discard."
     ),
     "europa": AgentConfig(
@@ -56,7 +56,7 @@ configs = {
         n_actions=60,
         layer_sizes=[256, 256, 256],
         obs_builder=IoObsBuilder(),
-        action_parser=SkipBoActionParser(),
+        action_parser=GeneralActionParser(),
         description="Eliminated the win reward and rewarded the stock pile more heavily."
     ),
     "ganymede": AgentConfig(
@@ -65,7 +65,7 @@ configs = {
         n_actions=60,
         layer_sizes=[256, 256, 256],
         obs_builder=GanymedeObsBuilder(),
-        action_parser=SkipBoActionParser(),
+        action_parser=GeneralActionParser(),
         description="Properly trained for 2 players, and also gets explicitly told when it can play the stock pile card."
     ),
     "callisto": AgentConfig(
@@ -74,8 +74,17 @@ configs = {
         n_actions=60,
         layer_sizes=[256, 256, 256],
         obs_builder=CallistoObsBuilder(),
-        action_parser=SkipBoActionParser(),
+        action_parser=GeneralActionParser(),
         description="More strongly encouraged to play cards not to the discard pile."
+    ),
+    "amalthea": AgentConfig(
+        data_path="agents/amalthea.pt",
+        input_size=39,
+        n_actions=60,
+        layer_sizes=[256, 256, 256],
+        obs_builder=CallistoObsBuilder(),
+        action_parser=AmaltheaActionParser(),
+        description="Entirely forbidden from playing to the discard pile when other moves are available."
     ),
 }
 
@@ -101,7 +110,8 @@ if __name__ == "__main__":
     mutator.apply(initial_state, {})
     engine.reset(initial_state)
     while True:
-        print(engine)
+        if not engine.state.last_step or engine.state.last_step.was_valid:
+            print(engine)
         action = None
         if engine.state.current_player == 0:
             print(Fore.green + "Your turn!" + Style.reset)

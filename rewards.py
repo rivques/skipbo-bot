@@ -202,3 +202,46 @@ class CallistoReward(RewardFunction[int, SkipBoState, float]):
                 print(f"{(20-stock_pile_size) * 0.1} for cards off stock pile")
 
         return {0: reward}
+
+class AmaltheaReward(RewardFunction[int, SkipBoState, float]):
+    """A class to represent the reward function for the game."""
+    def reset(self, agents, initial_state, shared_info):
+        pass
+    def get_rewards(self, agents, state, is_terminated, is_truncated, shared_info) -> dict[int, float]:
+        DO_LOG = False
+        reward = 0.0
+        if not state.last_step.was_valid:
+            # the move was invalid
+            if state.last_step.action.card_source == -1:
+                # the move was invalid because the player played to the discard pile with another move available
+                reward -= 0.1
+                if DO_LOG:
+                    print(f"-0.1 for avoidable discard")
+            else:
+                # the move was just invalid (e.g. tried to play a 7 on a 2)
+                reward -= 0.1
+                if DO_LOG:
+                    print(f"-0.1 for invalid move")
+            return {0: reward}
+        # now, reward plays to the stock pile, plays from the hand, and small stock piles
+        if state.last_step.action.card_source == 0:
+            # reward for playing from stock pile
+            if DO_LOG:
+                print(f"0.5 for playing from stock pile")
+            reward += 0.5
+        elif state.last_step.action.card_source >= 1 and state.last_step.action.card_source <= 4 and state.last_step.action.card_destination <= 4:
+            # reward for playing from hand to build pile
+            if DO_LOG:
+                print(f"0.05 for playing from hand to build pile")
+            reward += 0.05
+        if state.last_step.action.card_source < 5 and state.player_states[state.current_player].hand.count(0) == 0:
+            # reward for redrawing hand
+            # print(f"0.01 for redrawing hand")
+            reward += 0.01
+        # reward for smaller stock piles
+        stock_pile_size = len(state.player_states[state.current_player].stock_pile)
+        if stock_pile_size > 0:
+            reward += (20-stock_pile_size) * 0.1
+            if DO_LOG:
+                print(f"{(20-stock_pile_size) * 0.1} for cards off stock pile")
+        return {0: reward}

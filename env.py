@@ -72,7 +72,8 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
     def config(self, value: Dict[str, Any]):
         pass
     
-    def is_action_valid(self, action: SkipBoAction, state: SkipBoState) -> bool:
+    @staticmethod
+    def is_action_valid(action: SkipBoAction, state: SkipBoState) -> bool:
         """Check if an action is valid."""
         # check if the action is valid
         # 0: stock pile, 1-5: hand, 6-9: discard piles
@@ -146,7 +147,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
 
     def step(self, actions: Dict[int, SkipBoAction], shared_info: Dict[str, Any]) -> SkipBoState:
         """Step the game forward by one action."""
-        DO_LOG = False
+        DO_LOG = True
         # first, pick out the action whose turn it is
         current_player = self._state.current_player
         action = actions[0]
@@ -216,7 +217,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             self._draw_cards(self._state.current_player)
         if not DO_LOG:
             # 10 in 20k chance to print state anyways
-            if random.randint(0, 20000) == 0:
+            if random.randint(0, 2000) == 0:
                 print(self)
         return self._state
 
@@ -395,12 +396,14 @@ class CallistoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
     def build_obs(self, agents, state, shared_info):
         observations = {}
 
-        stock_pile_is_playable = state.player_states[state.current_player].stock_pile[-1] == len(state.build_piles[0]) + 1 or state.player_states[state.current_player].stock_pile[-1] == 13
+        stock_pile_is_playable = len(state.player_states[state.current_player].stock_pile) > 0 and (state.player_states[state.current_player].stock_pile[-1] == len(state.build_piles[0]) + 1 or state.player_states[state.current_player].stock_pile[-1] == 13)
+        if len(state.player_states[state.current_player].stock_pile) == 0:
+            print("Stock pile is empty, so it can't be played.")
 
         ps = state.player_states[state.current_player]
         nps = state.player_states[(state.current_player + 1) % len(state.player_states)]
         obs_py: list[int] = [
-            ps.stock_pile[-1], # len 1
+            ps.stock_pile[-1] if len(ps.stock_pile) > 0 else 0, # len 1
             len(ps.stock_pile), # len 1
             int(stock_pile_is_playable), # len 1
         ]
@@ -415,7 +418,7 @@ class CallistoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
             discards += [0] * (3-len(discard_pile)) + discard_pile[-3:] + [len(discard_pile)]
         obs_py += discards # len 16
         obs_py += [
-            nps.stock_pile[-1], # len 1
+            nps.stock_pile[-1] if len(nps.stock_pile) > 0 else 0, # len 1
             len(nps.stock_pile)
         ] # len 1
         # the top card of each of nps's discard piles
@@ -425,7 +428,7 @@ class CallistoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
         return {0: obs}
 
 
-class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
+class GeneralActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
     """A class to represent the action parser."""
     def __init__(self):
         self._lookup_table = self._generate_lookup_table()
@@ -462,14 +465,63 @@ class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState
                     lut.append((src, dest))
         return lut
 
+class AmaltheaActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
+    """A class to represent the action parser."""
+    def __init__(self):
+        self._lookup_table = self._generate_lookup_table()
+    def get_action_space(self, agent):
+        return 'discrete', len(self._lookup_table)
+    def reset(self, agents, initial_state, shared_info):
+        pass
+    def parse_actions(self, actions, state, shared_info):
+        # print(f"actions: {actions}")
+        parsed_actions = {}
+        action = actions[0]
+        parsed_action = SkipBoAction(
+            card_source=self._lookup_table[action[0]][0], 
+            card_destination=self._lookup_table[action[0]][1]
+        )
+        # if the action is to discard, check if there are any other valid actions
+        # if there are, don't allow the discard
+        if parsed_action.card_destination >= 4 and parsed_action.card_destination <= 7:
+            # check if there are any other valid actions
+            for src in range(10):
+                for dest in range(4):
+                    if SkipBoEngine.is_action_valid(SkipBoAction(src, dest), state):
+                        if src != parsed_action.card_source or dest != parsed_action.card_destination:
+                            # there is another valid action, so block the discard by giving an invalid action
+                            return {0: SkipBoAction(-1, -1)}
+        parsed_actions[0] = parsed_action
+        return parsed_actions
+    
+    def _generate_lookup_table(self):
+        """Generate a lookup table for the actions."""
+        # 0: stock pile, 1-5: hand, 6-9: discard piles
+        # 0-3: build piles, 4-7: discard piles
+        # stock pile and discard piles can only play to build piles
+        # hand can play to build piles and discard piles
+        lut = []
+        for src in range(10):
+            for dest in range(8):
+                if src == 0 or src >= 6:
+                    # stock pile and discard piles can only play to build piles
+                    if dest >= 0 and dest <= 3:
+                        lut.append((src, dest))
+                elif src >= 1 and src <= 5:
+                    # hand can play to build piles and discard piles
+                    lut.append((src, dest))
+        return lut
+
 class SkipBoTerminalCondition(DoneCondition[int, SkipBoState]):
     """Determines when episodes end naturally (the game has been won)"""
     def reset(self, agents, initial_state, shared_info):
         pass
-    def _is_done(self, agents, state, shared_info):
+    def _is_done(self, agents, state: SkipBoState, shared_info):
         return any([len(player_state.stock_pile) == 0 for player_state in state.player_states])
     def is_done(self, agents: List[int], state: SkipBoState, shared_info: Dict[str, Any]) -> Dict[int, bool]:
         done = self._is_done(agents, state, shared_info)
+        if done:
+            print("\033[32mF\033[0m", end="")
         return {0: done}
 
 class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
@@ -491,8 +543,8 @@ class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
             print("\033[31mN\033[0m", end="")
             return True
         # if the invalid actions count is too high
-        if state.invalid_actions_count >= 400:
-            print("\033[31mInvalid actions count too high.\033[0m")
+        if state.invalid_actions_count >= 500:
+            print("\033[31mI\033[0m", end="")
             return True
         return False
     

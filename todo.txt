@@ -1,0 +1,4 @@
+himalia:
+give it a list of the possible actions, and have it pick which one of those. if there are, say, 10 possible action slots and only 3 possible actions, randpmize which slots are in use.
+if it's possible to play a card hand, don't offer it a discard.
+also: make an iface that lets me dicatate the obs/game state so i can have it play in a physical game.
