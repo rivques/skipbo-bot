@@ -3,16 +3,16 @@ import os
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 def build_rlgym_v2_env():
-    from env import SkipBoMutator, SkipBoObsBuilder, SkipBoActionParser, SkipBoEngine, SkipBoTerminalCondition, SkipBoTruncationCondition
-    from rewards import SkipBoReward
+    from env import SkipBoMutator, IoObsBuilder, SkipBoActionParser, SkipBoEngine, SkipBoTerminalCondition, SkipBoTruncationCondition
+    from rewards import IoReward
 
     from rlgym.api import RLGym
 
     return RLGym(
         state_mutator=SkipBoMutator(1, 20),
-        obs_builder=SkipBoObsBuilder(),
+        obs_builder=IoObsBuilder(),
         action_parser=SkipBoActionParser(),
-        reward_fn=SkipBoReward(),
+        reward_fn=IoReward(),
         transition_engine=SkipBoEngine(1),
         termination_cond=SkipBoTerminalCondition(),
         truncation_cond=SkipBoTruncationCondition(),

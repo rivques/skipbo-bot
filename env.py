@@ -146,7 +146,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
 
     def step(self, actions: Dict[int, SkipBoAction], shared_info: Dict[str, Any]) -> SkipBoState:
         """Step the game forward by one action."""
-        DO_LOG = False
+        DO_LOG = True
         # first, pick out the action whose turn it is
         current_player = self._state.current_player
         action = actions[0]
@@ -165,6 +165,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
                 print(f"Player {current_player} tried to play the {self._card_at_src(self._state.player_states[current_player], action.card_source)} from their {self._src_name(action.card_source)} to the {self._card_at_dst(self._state.player_states[current_player], action.card_destination)} at their {self._dst_name(action.card_destination)}, but it was invalid.")
             # if the action is invalid, return the state without changing it further
             return self._state
+        
         # if the action is valid, reset the invalid actions count
         self._state.invalid_actions_count = 0
         # ok now we actually play skipbo
@@ -184,6 +185,9 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             # move from discard pile
             card_value = ps.discard_piles[card_source - 6].pop()
         
+        if DO_LOG:
+            print(f"Player {current_player} played the {card_value} from their {self._src_name(card_source)} to the {self._card_at_dst(ps, card_destination)} on their {self._dst_name(card_destination)}.")
+
         # now move the card to the destination
         if card_destination >= 0 and card_destination <= 3:
             # move to build pile
@@ -210,8 +214,6 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             self._state.num_turns += 1
             # draw new cards for the next player
             self._draw_cards(self._state.current_player)
-        if DO_LOG:
-            print(f"Player {current_player} played the {card_value} from their {self._src_name(card_source)} to the {self._card_at_dst(ps, card_destination)} on their {self._dst_name(card_destination)}.")
             
         return self._state
 
@@ -305,7 +307,7 @@ class SkipBoMutator(StateMutator[SkipBoState]):
         state.invalid_actions_count = 0
         state.last_step = None
 
-class SkipBoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
+class IoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
     """A class to represent the observation builder."""
     def get_obs_space(self, agent):
         return 'real', 33

@@ -1,7 +1,7 @@
 from env import SkipBoState
 from rlgym.api import RewardFunction
 
-class SkipBoReward(RewardFunction[int, SkipBoState, float]):
+class IoReward(RewardFunction[int, SkipBoState, float]):
     """A class to represent the reward function for the game."""
     def reset(self, agents, initial_state, shared_info):
         pass

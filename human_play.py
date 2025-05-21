@@ -1,9 +1,9 @@
-from env import SkipBoEngine, SkipBoMutator, SkipBoAction, SkipBoState, SkipBoTerminalCondition, SkipBoObsBuilder
-from rewards import SkipBoReward
+from env import SkipBoEngine, SkipBoMutator, SkipBoAction, SkipBoState, SkipBoTerminalCondition, IoObsBuilder
+from rewards import IoReward
 
 # a quick-n-dirty interface to allow a human to play the game thru the terminal
 
-def show_rewards(rewarder: SkipBoReward, state: SkipBoState, did_terminate: bool):
+def show_rewards(rewarder: IoReward, state: SkipBoState, did_terminate: bool):
     rewards = rewarder.get_rewards([0], state, {0: did_terminate}, {0: False}, {})
     print(f"The rewards for that turn are: {rewards}")
 
@@ -20,8 +20,8 @@ def human_play():
     initial_state = engine.create_base_state()
     mutator.apply(initial_state, {})
     engine.reset(initial_state)
-    rewarder = SkipBoReward()
-    obs_builder = SkipBoObsBuilder()
+    rewarder = IoReward()
+    obs_builder = IoObsBuilder()
     while True:
         print(engine)
         print("Observation: ", end="")
