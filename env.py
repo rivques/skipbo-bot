@@ -342,6 +342,45 @@ class IoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
         obs = np.array(obs_py, dtype=np.int32)
         return {0: obs}
 
+class GanymedeObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
+    """A class to represent the observation builder."""
+    def get_obs_space(self, agent):
+        return 'real', 34
+    
+    def reset(self, agents, initial_state, shared_info):
+        pass
+
+    def build_obs(self, agents, state, shared_info):
+        observations = {}
+
+        stock_pile_is_playable = state.player_states[state.current_player].stock_pile[-1] == len(state.build_piles[0]) + 1 or state.player_states[state.current_player].stock_pile[-1] == 13
+
+        ps = state.player_states[state.current_player]
+        nps = state.player_states[(state.current_player + 1) % len(state.player_states)]
+        obs_py: list[int] = [
+            ps.stock_pile[-1], # len 1
+            len(ps.stock_pile), # len 1
+            int(stock_pile_is_playable), # len 1
+        ]
+        obs_py += ps.hand # len 5
+        # len(build_pile) will give the effective value of each pile
+        obs_py += [len(build_pile) for build_pile in state.build_piles] # len 4
+        # the top 3 cards of each discard pile, left-padded with 0s, and the size of each pile
+        discards = []
+        for discard_pile in ps.discard_piles:
+            discards += [0] * (3-len(discard_pile)) + discard_pile[-3:] + [len(discard_pile)]
+        obs_py += discards # len 16
+        obs_py += [
+            nps.stock_pile[-1], # len 1
+            len(nps.stock_pile)
+        ] # len 1
+        # the top card of each of nps's discard piles
+        obs_py += [discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in nps.discard_piles] # len 4
+        # total len 34
+        obs = np.array(obs_py, dtype=np.int32)
+        return {0: obs}
+
+
 class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
     """A class to represent the action parser."""
     def __init__(self):

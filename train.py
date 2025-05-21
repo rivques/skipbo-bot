@@ -3,17 +3,17 @@ import os
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 def build_rlgym_v2_env():
-    from env import SkipBoMutator, IoObsBuilder, SkipBoActionParser, SkipBoEngine, SkipBoTerminalCondition, SkipBoTruncationCondition
-    from rewards import IoReward, EuropaReward
+    from env import SkipBoMutator, GanymedeObsBuilder, SkipBoActionParser, SkipBoEngine, SkipBoTerminalCondition, SkipBoTruncationCondition
+    from rewards import GanymedeReward
 
     from rlgym.api import RLGym
 
     return RLGym(
-        state_mutator=SkipBoMutator(1, 20),
-        obs_builder=IoObsBuilder(),
+        state_mutator=SkipBoMutator(2, 20),
+        obs_builder=GanymedeObsBuilder(),
         action_parser=SkipBoActionParser(),
-        reward_fn=EuropaReward(),
-        transition_engine=SkipBoEngine(1),
+        reward_fn=GanymedeReward(),
+        transition_engine=SkipBoEngine(2),
         termination_cond=SkipBoTerminalCondition(),
         truncation_cond=SkipBoTruncationCondition(),
     )
@@ -81,7 +81,7 @@ if __name__ == "__main__":
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
                     project="skipbo",
                     group="rlgym-learn-prod",
-                    run="europa"
+                    run="ganymede"
                 ),
             )
 
@@ -100,10 +100,10 @@ if __name__ == "__main__":
                     (PyAnySerdeType.STRING(), PyAnySerdeType.INT())
                 ),
             ),
-            timestep_limit=100_100_000,  # Train for 100M steps
+            timestep_limit=20_100_000,  # Train for 20M steps
         ),
         process_config=ProcessConfigModel(
-            n_proc=32,  # Number of processes to spawn to run environments. Increasing will use more RAM but should increase steps per second, up to a point
+            n_proc=256,  # Number of processes to spawn to run environments. Increasing will use more RAM but should increase steps per second, up to a point
         ),
         agent_controllers_config={
             "PPO1": ppo_agent_controller_config,
