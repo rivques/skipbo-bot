@@ -66,7 +66,7 @@ if __name__ == "__main__":
         return BasicCritic(obs_space[1], (256, 256, 256), device)
 
     ppo_agent_controller_config = PPOAgentControllerConfigModel(
-                timesteps_per_iteration=50_000,
+                timesteps_per_iteration=100_000,
                 save_every_ts=1_000_000,
                 add_unix_timestamp=True,
                 learner_config=PPOLearnerConfigModel(
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         base_config=BaseConfigModel(
             serde_types=SerdeTypesModel(
                 agent_id_serde_type=PyAnySerdeType.INT(),
-                action_serde_type=PyAnySerdeType.NUMPY(np.int8),
+                action_serde_type=PyAnySerdeType.NUMPY(np.int64, config=NumpySerdeConfig.STATIC(shape=(1,))),
                 obs_serde_type=PyAnySerdeType.NUMPY(np.int32),
                 reward_serde_type=PyAnySerdeType.FLOAT(),
                 obs_space_serde_type=PyAnySerdeType.TUPLE(
@@ -99,7 +99,7 @@ if __name__ == "__main__":
                     (PyAnySerdeType.STRING(), PyAnySerdeType.INT())
                 ),
             ),
-            timestep_limit=10_000_000,  # Train for 10M steps
+            timestep_limit=10_000_000,  # Train for 100M steps
         ),
         process_config=ProcessConfigModel(
             n_proc=32,  # Number of processes to spawn to run environments. Increasing will use more RAM but should increase steps per second, up to a point

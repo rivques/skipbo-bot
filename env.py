@@ -104,9 +104,49 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
         else:
             return False
 
+    def _src_name(self, src: int) -> str:
+        """Get the name of the source."""
+        if src == 0:
+            return "stock pile"
+        elif src >= 1 and src <= 5:
+            return f"hand {src - 1}"
+        elif src >= 6 and src <= 9:
+            return f"discard pile {src - 6}"
+        else:
+            return "unknown"
+    
+    def _dst_name(self, dst: int) -> str:
+        """Get the name of the destination."""
+        if dst >= 0 and dst <= 3:
+            return f"build pile {dst}"
+        elif dst >= 4 and dst <= 7:
+            return f"discard pile {dst - 4}"
+        else:
+            return "unknown"
+        
+    def _card_at_src(self, player_state: PlayerState, src: int) -> Card:
+        """Get the card at the source."""
+        if src == 0:
+            return player_state.stock_pile[-1]
+        elif src >= 1 and src <= 5:
+            return player_state.hand[src - 1]
+        elif src >= 6 and src <= 9:
+            return player_state.discard_piles[src - 6][-1] if len(player_state.discard_piles[src - 6]) > 0 else 0
+        else:
+            return 0
+    
+    def _card_at_dst(self, player_state: PlayerState, dst: int) -> Card:
+        """Get the card at the destination."""
+        if dst >= 0 and dst <= 3:
+            return len(self._state.build_piles[dst])
+        elif dst >= 4 and dst <= 7:
+            return player_state.discard_piles[dst - 4][-1] if len(player_state.discard_piles[dst - 4]) > 0 else 0
+        else:
+            return 0
 
     def step(self, actions: Dict[int, SkipBoAction], shared_info: Dict[str, Any]) -> SkipBoState:
         """Step the game forward by one action."""
+        DO_LOG = False
         # first, pick out the action whose turn it is
         current_player = self._state.current_player
         action = actions[0]
@@ -121,6 +161,8 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             self._state.invalid_actions_count += 1
             # set the last step to invalid
             self._state.last_step.was_valid = False
+            if DO_LOG:
+                print(f"Player {current_player} tried to play the {self._card_at_src(self._state.player_states[current_player], action.card_source)} from their {self._src_name(action.card_source)} to the {self._card_at_dst(self._state.player_states[current_player], action.card_destination)} at their {self._dst_name(action.card_destination)}, but it was invalid.")
             # if the action is invalid, return the state without changing it further
             return self._state
         # if the action is valid, reset the invalid actions count
@@ -168,7 +210,9 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             self._state.num_turns += 1
             # draw new cards for the next player
             self._draw_cards(self._state.current_player)
-        
+        if DO_LOG:
+            print(f"Player {current_player} played the {card_value} from their {self._src_name(card_source)} to the {self._card_at_dst(ps, card_destination)} on their {self._dst_name(card_destination)}.")
+            
         return self._state
 
     def _draw_cards(self, player_id: int):
@@ -298,19 +342,40 @@ class SkipBoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
 
 class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
     """A class to represent the action parser."""
+    def __init__(self):
+        self._lookup_table = self._generate_lookup_table()
     def get_action_space(self, agent):
-        return 'real', 2
+        return 'discrete', len(self._lookup_table) # 10 sources, 8 destinations
     def reset(self, agents, initial_state, shared_info):
         pass
     def parse_actions(self, actions, state, shared_info):
+        # print(f"actions: {actions}")
         parsed_actions = {}
         action = actions[0]
         parsed_action = SkipBoAction(
-            card_source=int(action[0]),
-            card_destination=int(action[1])
+            card_source=self._lookup_table[action[0]][0], 
+            card_destination=self._lookup_table[action[0]][1]
         )
         parsed_actions[0] = parsed_action
         return parsed_actions
+    
+    def _generate_lookup_table(self):
+        """Generate a lookup table for the actions."""
+        # 0: stock pile, 1-5: hand, 6-9: discard piles
+        # 0-3: build piles, 4-7: discard piles
+        # stock pile and discard piles can only play to build piles
+        # hand can play to build piles and discard piles
+        lut = []
+        for src in range(10):
+            for dest in range(8):
+                if src == 0 or src >= 6:
+                    # stock pile and discard piles can only play to build piles
+                    if dest >= 0 and dest <= 3:
+                        lut.append((src, dest))
+                elif src >= 1 and src <= 5:
+                    # hand can play to build piles and discard piles
+                    lut.append((src, dest))
+        return lut
 
 class SkipBoTerminalCondition(DoneCondition[int, SkipBoState]):
     """Determines when episodes end naturally (the game has been won)"""
@@ -339,7 +404,7 @@ class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
         if len(state.draw_pile) + len(state.completed_build_piles) < 20:
             return True
         # if the invalid actions count is too high
-        if state.invalid_actions_count >= 5:
+        if state.invalid_actions_count >= 50:
             return True
         return False
     

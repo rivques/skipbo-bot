@@ -1,0 +1,18 @@
+{
+    "gamma": 0.99,
+    "lambda": 0.95,
+    "standardize_returns": true,
+    "max_returns_per_stats_increment": 150,
+    "return_running_stats": {
+        "mean": [
+            0.3927198648452759
+        ],
+        "var": [
+            8279.9345703125
+        ],
+        "shape": [
+            1
+        ],
+        "count": 13500
+    }
+}
