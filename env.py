@@ -52,12 +52,12 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
     @property
     def agents(self) -> List[int]:
         """List of IDs of the agents in the game."""
-        return list(range(self.num_players))
+        return [0]
     
     @property
     def max_num_agents(self) -> int:
-        """Maximum number of agents in the game."""
-        return self.num_players
+        """Maximum number of agents in the game. This is 1 - the same agent will play all players."""
+        return 1
     
     @property
     def state(self) -> SkipBoState:
@@ -109,7 +109,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
         """Step the game forward by one action."""
         # first, pick out the action whose turn it is
         current_player = self._state.current_player
-        action = actions[current_player]
+        action = actions[0]
         self._state.last_step = SkipBoLastStep(
             action=action,
             taken_by=current_player,
@@ -271,32 +271,30 @@ class SkipBoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
 
     def build_obs(self, agents, state, shared_info):
         observations = {}
-        for agent in agents:
-            ps = state.player_states[agent]
-            nps = state.player_states[(agent + 1) % len(state.player_states)]
-            obs_py: list[int] = [
-                ps.stock_pile[-1], # len 1
-                len(ps.stock_pile), # len 1
-            ]
-            obs_py += ps.hand # len 5
-            # len(build_pile) will give the effective value of each pile
-            obs_py += [len(build_pile) for build_pile in state.build_piles] # len 4
-            # the top 3 cards of each discard pile, left-padded with 0s, and the size of each pile
-            discards = []
-            for discard_pile in ps.discard_piles:
-                discards += [0] * (3-len(discard_pile)) + discard_pile[-3:] + [len(discard_pile)]
-            obs_py += discards # len 16
-            obs_py += [
-                nps.stock_pile[-1], # len 1
-                len(nps.stock_pile)
-            ] # len 1
-            # the top card of each of nps's discard piles
-            obs_py += [discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in nps.discard_piles] # len 4
-            # total len 33
-            obs = np.array(obs_py, dtype=np.int32)
-            observations[agent] = obs
 
-        return observations
+        ps = state.player_states[state.current_player]
+        nps = state.player_states[(state.current_player + 1) % len(state.player_states)]
+        obs_py: list[int] = [
+            ps.stock_pile[-1], # len 1
+            len(ps.stock_pile), # len 1
+        ]
+        obs_py += ps.hand # len 5
+        # len(build_pile) will give the effective value of each pile
+        obs_py += [len(build_pile) for build_pile in state.build_piles] # len 4
+        # the top 3 cards of each discard pile, left-padded with 0s, and the size of each pile
+        discards = []
+        for discard_pile in ps.discard_piles:
+            discards += [0] * (3-len(discard_pile)) + discard_pile[-3:] + [len(discard_pile)]
+        obs_py += discards # len 16
+        obs_py += [
+            nps.stock_pile[-1], # len 1
+            len(nps.stock_pile)
+        ] # len 1
+        # the top card of each of nps's discard piles
+        obs_py += [discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in nps.discard_piles] # len 4
+        # total len 33
+        obs = np.array(obs_py, dtype=np.int32)
+        return {0: obs}
 
 class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
     """A class to represent the action parser."""
@@ -306,13 +304,12 @@ class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState
         pass
     def parse_actions(self, actions, state, shared_info):
         parsed_actions = {}
-        for agent in actions:
-            action = actions[agent]
-            parsed_action = SkipBoAction(
-                card_source=int(action[0]),
-                card_destination=int(action[1])
-            )
-            parsed_actions[agent] = parsed_action
+        action = actions[0]
+        parsed_action = SkipBoAction(
+            card_source=int(action[0]),
+            card_destination=int(action[1])
+        )
+        parsed_actions[0] = parsed_action
         return parsed_actions
 
 class SkipBoTerminalCondition(DoneCondition[int, SkipBoState]):
@@ -323,7 +320,7 @@ class SkipBoTerminalCondition(DoneCondition[int, SkipBoState]):
         return any([len(player_state.stock_pile) == 0 for player_state in state.player_states])
     def is_done(self, agents: List[int], state: SkipBoState, shared_info: Dict[str, Any]) -> Dict[int, bool]:
         done = self._is_done(agents, state, shared_info)
-        return {agent: done for agent in agents}
+        return {0: done}
 
 class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
     """Determines when episodes are cut short (time limit reached, out of cards)"""
@@ -349,4 +346,4 @@ class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
     def is_done(self, agents: List[int], state: SkipBoState, shared_info: Dict[str, Any]) -> Dict[int, bool]:
         # check if the game is done
         done = self._is_done(agents, state, shared_info)
-        return {agent: done for agent in agents}
+        return {0: done}

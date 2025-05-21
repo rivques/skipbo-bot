@@ -4,8 +4,7 @@ from rewards import SkipBoReward
 # a quick-n-dirty interface to allow a human to play the game thru the terminal
 
 def show_rewards(rewarder: SkipBoReward, state: SkipBoState, did_terminate: bool):
-    num_players = len(state.player_states)
-    rewards = rewarder.get_rewards(list(range(num_players)), state, {i: did_terminate for i in range(num_players)}, {i: False for i in range(num_players)}, {})
+    rewards = rewarder.get_rewards([0], state, {0: did_terminate}, {0: False}, {})
     print(f"The rewards for that turn are: {rewards}")
 
 def human_play():
@@ -26,7 +25,7 @@ def human_play():
     while True:
         print(engine)
         print("Observation: ", end="")
-        obs = obs_builder.build_obs(list(range(num_players)), engine.state, {})
+        obs = obs_builder.build_obs([0], engine.state, {})
         print(obs)
         card_source = int(input("Card source (stock pile, hand, discards): "))
         card_dest = int(input("Card destination (build piles, discards): "))
@@ -34,8 +33,8 @@ def human_play():
         action = SkipBoAction(card_source=card_source, card_destination=card_dest)
         if not engine.is_action_valid(action, engine.state):
             print("\033[31mInvalid action.\033[0m")
-        engine.step({i: action for i in range(num_players)}, {})
-        if terminator.is_done([], engine.state, {}):
+        engine.step({0: action}, {})
+        if terminator.is_done([0], engine.state, {})[0]:
             print("Game over!")
             print("Final state:")
             print(engine)
