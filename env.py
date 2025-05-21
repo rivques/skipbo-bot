@@ -146,7 +146,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
 
     def step(self, actions: Dict[int, SkipBoAction], shared_info: Dict[str, Any]) -> SkipBoState:
         """Step the game forward by one action."""
-        DO_LOG = True
+        DO_LOG = False
         # first, pick out the action whose turn it is
         current_player = self._state.current_player
         action = actions[0]
@@ -407,6 +407,7 @@ class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
             return True
         # if the invalid actions count is too high
         if state.invalid_actions_count >= 50:
+            print("\033[31mInvalid actions count too high.\033[0m")
             return True
         return False
     

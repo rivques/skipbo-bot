@@ -4,7 +4,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 def build_rlgym_v2_env():
     from env import SkipBoMutator, IoObsBuilder, SkipBoActionParser, SkipBoEngine, SkipBoTerminalCondition, SkipBoTruncationCondition
-    from rewards import IoReward
+    from rewards import IoReward, EuropaReward
 
     from rlgym.api import RLGym
 
@@ -12,7 +12,7 @@ def build_rlgym_v2_env():
         state_mutator=SkipBoMutator(1, 20),
         obs_builder=IoObsBuilder(),
         action_parser=SkipBoActionParser(),
-        reward_fn=IoReward(),
+        reward_fn=EuropaReward(),
         transition_engine=SkipBoEngine(1),
         termination_cond=SkipBoTerminalCondition(),
         truncation_cond=SkipBoTruncationCondition(),
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         return BasicCritic(obs_space[1], (256, 256, 256), device)
 
     ppo_agent_controller_config = PPOAgentControllerConfigModel(
-                timesteps_per_iteration=100_000,
+                timesteps_per_iteration=50_000,
                 save_every_ts=1_000_000,
                 add_unix_timestamp=True,
                 learner_config=PPOLearnerConfigModel(
@@ -80,7 +80,8 @@ if __name__ == "__main__":
                 ),
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
                     project="skipbo",
-                    group="rlgym-learn-testing"
+                    group="rlgym-learn-prod",
+                    run="europa"
                 ),
             )
 
@@ -99,7 +100,7 @@ if __name__ == "__main__":
                     (PyAnySerdeType.STRING(), PyAnySerdeType.INT())
                 ),
             ),
-            timestep_limit=10_000_000,  # Train for 100M steps
+            timestep_limit=100_100_000,  # Train for 100M steps
         ),
         process_config=ProcessConfigModel(
             n_proc=32,  # Number of processes to spawn to run environments. Increasing will use more RAM but should increase steps per second, up to a point

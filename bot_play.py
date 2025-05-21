@@ -17,6 +17,7 @@ class AgentConfig:
     layer_sizes: list
     obs_builder: ObsBuilder
     action_parser: ActionParser
+    description: str
 
 class Agent:
     def __init__(self, config: AgentConfig):
@@ -47,6 +48,16 @@ configs = {
         layer_sizes=[256, 256, 256],
         obs_builder=IoObsBuilder(),
         action_parser=SkipBoActionParser(),
+        description="The first agent successfully trained. However, it only knows how to discard."
+    ),
+    "europa": AgentConfig(
+        data_path="agents/europa.pt",
+        input_size=33,
+        n_actions=60,
+        layer_sizes=[256, 256, 256],
+        obs_builder=IoObsBuilder(),
+        action_parser=SkipBoActionParser(),
+        description="Eliminated the win reward and rewarded the stock pile more heavily."
     ),
 }
 
@@ -56,7 +67,7 @@ if __name__ == "__main__":
     # offer the user a choice of agent
     print("Choose an agent:")
     for i, agent_name in enumerate(configs.keys()):
-        print(f"{i}: {agent_name}")
+        print(f"{i}: {agent_name} - {configs[agent_name].description}")
     choice = int(input("Enter the number of the agent you want to use: "))
     agent_name = list(configs.keys())[choice]
     config = configs[agent_name]
