@@ -214,7 +214,10 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             self._state.num_turns += 1
             # draw new cards for the next player
             self._draw_cards(self._state.current_player)
-            
+        if not DO_LOG:
+            # 10 in 20k chance to print state anyways
+            if random.randint(0, 20000) == 0:
+                print(self)
         return self._state
 
     def _draw_cards(self, player_id: int):
@@ -273,6 +276,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             result += f"Player {i}: Stock pile: {len(player_state.stock_pile)} cards, top card: {player_state.stock_pile[-1] if len(player_state.stock_pile) > 0 else 0}, Discard piles tops: {[discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in player_state.discard_piles]}\n"
         result += f"Build piles: {self._state.build_piles}\n"
         result += f"Draw pile: {len(self._state.draw_pile)} cards\n"
+        result += f"Turns taken so far: {self._state.num_turns}\n"
         return result
 
 
@@ -380,6 +384,46 @@ class GanymedeObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
         obs = np.array(obs_py, dtype=np.int32)
         return {0: obs}
 
+class CallistoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
+    """A class to represent the observation builder."""
+    def get_obs_space(self, agent):
+        return 'real', 39
+    
+    def reset(self, agents, initial_state, shared_info):
+        pass
+
+    def build_obs(self, agents, state, shared_info):
+        observations = {}
+
+        stock_pile_is_playable = state.player_states[state.current_player].stock_pile[-1] == len(state.build_piles[0]) + 1 or state.player_states[state.current_player].stock_pile[-1] == 13
+
+        ps = state.player_states[state.current_player]
+        nps = state.player_states[(state.current_player + 1) % len(state.player_states)]
+        obs_py: list[int] = [
+            ps.stock_pile[-1], # len 1
+            len(ps.stock_pile), # len 1
+            int(stock_pile_is_playable), # len 1
+        ]
+        obs_py += ps.hand # len 5
+        hand_cards_are_playable = [card == 13 or any([card == len(pile) + 1 for pile in state.build_piles]) for card in ps.hand]
+        obs_py += hand_cards_are_playable # len 5
+        # len(build_pile) will give the effective value of each pile
+        obs_py += [len(build_pile) for build_pile in state.build_piles] # len 4
+        # the top 3 cards of each discard pile, left-padded with 0s, and the size of each pile
+        discards = []
+        for discard_pile in ps.discard_piles:
+            discards += [0] * (3-len(discard_pile)) + discard_pile[-3:] + [len(discard_pile)]
+        obs_py += discards # len 16
+        obs_py += [
+            nps.stock_pile[-1], # len 1
+            len(nps.stock_pile)
+        ] # len 1
+        # the top card of each of nps's discard piles
+        obs_py += [discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in nps.discard_piles] # len 4
+        # total len 34
+        obs = np.array(obs_py, dtype=np.int32)
+        return {0: obs}
+
 
 class SkipBoActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
     """A class to represent the action parser."""
@@ -430,7 +474,7 @@ class SkipBoTerminalCondition(DoneCondition[int, SkipBoState]):
 
 class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
     """Determines when episodes are cut short (time limit reached, out of cards)"""
-    def __init__(self, max_turns: int = 250):
+    def __init__(self, max_turns: int = 1000):
         super().__init__()
         self.max_turns = max_turns
     
@@ -440,12 +484,14 @@ class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):
     def _is_done(self, agents, state, shared_info):
         # if the game has been going on for too long
         if state.num_turns >= self.max_turns:
+            print("\033[31mGame has been going on for too long.\033[0m")
             return True
         # if there aren't enough cards in the draw pile + completed build piles
         if len(state.draw_pile) + len(state.completed_build_piles) < 20:
+            print("\033[31mN\033[0m", end="")
             return True
         # if the invalid actions count is too high
-        if state.invalid_actions_count >= 50:
+        if state.invalid_actions_count >= 400:
             print("\033[31mInvalid actions count too high.\033[0m")
             return True
         return False

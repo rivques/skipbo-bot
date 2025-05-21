@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import torch
 import numpy as np
 
-from env import GanymedeObsBuilder, SkipBoAction, SkipBoActionParser, IoObsBuilder, SkipBoEngine, SkipBoMutator, SkipBoState, SkipBoTerminalCondition
+from env import CallistoObsBuilder, GanymedeObsBuilder, SkipBoAction, SkipBoActionParser, IoObsBuilder, SkipBoEngine, SkipBoMutator, SkipBoState, SkipBoTerminalCondition
 
 from rlgym.api import ObsBuilder, ActionParser
 from rlgym_learn_algos.ppo.discrete_actor import DiscreteFF
@@ -67,6 +67,15 @@ configs = {
         obs_builder=GanymedeObsBuilder(),
         action_parser=SkipBoActionParser(),
         description="Properly trained for 2 players, and also gets explicitly told when it can play the stock pile card."
+    ),
+    "callisto": AgentConfig(
+        data_path="agents/callisto.pt",
+        input_size=39,
+        n_actions=60,
+        layer_sizes=[256, 256, 256],
+        obs_builder=CallistoObsBuilder(),
+        action_parser=SkipBoActionParser(),
+        description="More strongly encouraged to play cards not to the discard pile."
     ),
 }
 
