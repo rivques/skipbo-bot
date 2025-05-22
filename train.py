@@ -3,16 +3,16 @@ import os
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 def build_rlgym_v2_env():
-    from env import SkipBoMutator, CallistoObsBuilder, AmaltheaActionParser, SkipBoEngine, SkipBoTerminalCondition, SkipBoTruncationCondition
-    from rewards import AmaltheaReward
+    from env import SkipBoMutator, HimaliaObsBuilder, HimaliaActionParser, SkipBoEngine, SkipBoTerminalCondition, SkipBoTruncationCondition
+    from rewards import HimaliaReward
 
     from rlgym.api import RLGym
 
     return RLGym(
         state_mutator=SkipBoMutator(2, 20),
-        obs_builder=CallistoObsBuilder(),
-        action_parser=AmaltheaActionParser(),
-        reward_fn=AmaltheaReward(),
+        obs_builder=HimaliaObsBuilder(),
+        action_parser=HimaliaActionParser(),
+        reward_fn=HimaliaReward(),
         transition_engine=SkipBoEngine(2),
         termination_cond=SkipBoTerminalCondition(),
         truncation_cond=SkipBoTruncationCondition(),
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     ppo_agent_controller_config = PPOAgentControllerConfigModel(
                 timesteps_per_iteration=50_000,
                 save_every_ts=1_000_000,
-                add_unix_timestamp=True,
+                add_unix_timestamp=False,
                 learner_config=PPOLearnerConfigModel(
                     ent_coef=0.01,  # Sets the entropy coefficient used in the PPO algorithm
                     actor_lr=5e-5,  # Sets the learning rate of the actor model
@@ -81,8 +81,9 @@ if __name__ == "__main__":
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
                     project="skipbo",
                     group="rlgym-learn-prod",
-                    run="amalthea",
+                    run="himalia",
                 ),
+                run_name="himalia"
             )
 
     # Create the config that will be used for the run

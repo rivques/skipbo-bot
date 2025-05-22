@@ -85,7 +85,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
 
         source_value = 0
         if card_source == 0:
-            source_value = ps.stock_pile[-1]
+            source_value = ps.stock_pile[-1] if len(ps.stock_pile) > 0 else 0
         elif card_source >= 1 and card_source <= 5:
             source_value = ps.hand[card_source - 1]
         elif card_source >= 6 and card_source <= 9:
@@ -101,7 +101,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             else:
                 return source_value == dest_value + 1
         elif card_destination >= 4 and card_destination <= 7:
-            return card_source >= 1 and card_source <= 5 # can only discard from hand
+            return card_source >= 1 and card_source <= 5 and source_value != 0 # can only discard from hand, and can't discard nothing
         else:
             return False
 
@@ -147,7 +147,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
 
     def step(self, actions: Dict[int, SkipBoAction], shared_info: Dict[str, Any]) -> SkipBoState:
         """Step the game forward by one action."""
-        DO_LOG = True
+        DO_LOG = False
         # first, pick out the action whose turn it is
         current_player = self._state.current_player
         action = actions[0]
@@ -217,7 +217,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
             self._draw_cards(self._state.current_player)
         if not DO_LOG:
             # 10 in 20k chance to print state anyways
-            if random.randint(0, 2000) == 0:
+            if random.randint(0, 80_000) == 0:
                 print(self)
         return self._state
 
@@ -274,7 +274,7 @@ class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
         result = f"It's player {self._state.current_player}'s turn.\n"
         result += f"Current player hand: {self._state.player_states[self._state.current_player].hand}\n"
         for i, player_state in enumerate(self._state.player_states):
-            result += f"Player {i}: Stock pile: {len(player_state.stock_pile)} cards, top card: {player_state.stock_pile[-1] if len(player_state.stock_pile) > 0 else 0}, Discard piles tops: {[discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in player_state.discard_piles]}\n"
+            result += f"Player {i}: Stock pile: {len(player_state.stock_pile)} cards, top card: {player_state.stock_pile[-1] if len(player_state.stock_pile) > 0 else 0}, Discard piles tops: {[discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in player_state.discard_piles]}, discard piles sizes: {[len(discard_pile) for discard_pile in player_state.discard_piles]}\n"
         result += f"Build piles: {self._state.build_piles}\n"
         result += f"Draw pile: {len(self._state.draw_pile)} cards\n"
         result += f"Turns taken so far: {self._state.num_turns}\n"
@@ -427,6 +427,91 @@ class CallistoObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
         obs = np.array(obs_py, dtype=np.int32)
         return {0: obs}
 
+class HimaliaObsBuilder(ObsBuilder[int, np.ndarray, SkipBoState, tuple]):
+    """A class to represent the observation builder."""
+    def get_obs_space(self, agent):
+        return 'real', 73
+    
+    def reset(self, agents, initial_state, shared_info):
+        pass
+
+    def build_obs(self, agents, state, shared_info):
+        observations = {}
+
+        ps = state.player_states[state.current_player]
+        nps = state.player_states[(state.current_player + 1) % len(state.player_states)]
+        obs_py: list[int] = [
+            ps.stock_pile[-1] if len(ps.stock_pile) > 0 else 0, # len 1
+            len(ps.stock_pile), # len 1
+        ]
+        obs_py += ps.hand # len 5
+        # len(build_pile) will give the effective value of each pile
+        obs_py += [len(build_pile) for build_pile in state.build_piles] # len 4
+        # the top 3 cards of each discard pile, left-padded with 0s, and the size of each pile
+        discards = []
+        for discard_pile in ps.discard_piles:
+            discards += [0] * (3-len(discard_pile)) + discard_pile[-3:] + [len(discard_pile)]
+        obs_py += discards # len 16
+        obs_py += [
+            nps.stock_pile[-1] if len(nps.stock_pile) > 0 else 0, # len 1
+            len(nps.stock_pile)
+        ] # len 1
+        # the top card of each of nps's discard piles
+        obs_py += [discard_pile[-1] if len(discard_pile) > 0 else 0 for discard_pile in nps.discard_piles] # len 4
+        # total len 33
+
+        # now, find possible moves
+        # here, dst is slightly different: 3 for build pile, 5-9 for discard pile
+        possible_moves = []
+        for src in range(10):
+            for dst in range(4):
+                action = SkipBoAction(src, dst)
+                if SkipBoEngine.is_action_valid(action, state):
+                    possible_moves.append((src, dst))
+        if len(possible_moves) == 0:
+            # we can't play anything, so we have to discard
+            for src in range(1, 6):
+                if ps.hand[src - 1] != 0:
+                    for dst in range(4, 8):
+                        possible_moves.append((src, dst))
+        if len(possible_moves) > 20:
+            print(f"Too many possible moves, reducing to 20: {possible_moves}")
+            print(f"from state: {state}")
+            # first, try to remove moves that are effectively duplicates (playing to two build piles with the same value, or sourcing from two cards from the hand with the same value)
+            for i in range(len(possible_moves)):
+                for j in range(i + 1, len(possible_moves)):
+                    source_is_same_value = False
+                    if possible_moves[i][0] >= 1 and possible_moves[i][0] <= 5 and possible_moves[j][0] >= 1 and possible_moves[j][0] <= 5:
+                        # both moves are from the hand
+                        if ps.hand[possible_moves[i][0] - 1] == ps.hand[possible_moves[j][0] - 1]:
+                            source_is_same_value = True
+                    dest_is_same_value = False
+                    if possible_moves[i][1] >= 0 and possible_moves[i][1] <= 3 and possible_moves[j][1] >= 0 and possible_moves[j][1] <= 3:
+                        # both moves are to build piles
+                        if len(state.build_piles[possible_moves[i][1]]) == len(state.build_piles[possible_moves[j][1]]):
+                            dest_is_same_value = True
+                    if source_is_same_value or dest_is_same_value:
+                        # remove the second move
+                        removed = possible_moves.pop(j)
+                        print(f"Removed duplicate move: {removed} at index {j}")
+                        break
+            # if we still have too many moves, just take the first 20
+            if len(possible_moves) > 20:
+                print(f"Too many possible moves, reducing to 20: {possible_moves}")
+                possible_moves = possible_moves[:20]
+
+        # fill the rest of possible moves with (-1, -1) to a length of 20
+        while len(possible_moves) < 20:
+            possible_moves.append((-1, -1))
+        random.shuffle(possible_moves)
+        # make sure the action parser knows the order of the moves
+        shared_info['possible_moves'] = possible_moves
+        for i in range(20):
+            obs_py += [possible_moves[i][0], possible_moves[i][1]]
+        # total len 73
+
+        obs = np.array(obs_py, dtype=np.int32)
+        return {0: obs}
 
 class GeneralActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
     """A class to represent the action parser."""
@@ -512,6 +597,40 @@ class AmaltheaActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoSta
                     lut.append((src, dest))
         return lut
 
+class HimaliaActionParser(ActionParser[int, np.ndarray, SkipBoAction, SkipBoState, tuple]):
+    """A class to represent the action parser."""
+    def get_action_space(self, agent):
+        return 'discrete', 20 # 20 possible moves max
+    def reset(self, agents, initial_state, shared_info):
+        pass
+    def parse_actions(self, actions, state, shared_info):
+        # print(f"actions: {actions}")
+        parsed_actions = {}
+        action_idx = actions[0][0]
+        shared_info["raw_action_idx"] = action_idx
+        if 'possible_moves' not in shared_info:
+            raise ValueError("No possible actions in shared info.")
+        possible_actions = shared_info['possible_moves']
+        # pick the valid action from the possible actions closest to the action
+        # for example, if action_idx is 2, then try 2,3,1,4,0,5,6, etc. until there's a valid possible action
+        # generate a list of indices to try
+        indices_to_try = [action_idx]
+        for i in range(1, 11):
+            indices_to_try += [action_idx + i, action_idx - i]
+        indices_to_try = [i % 20 for i in indices_to_try]
+        for i in indices_to_try:
+            src, dst = possible_actions[i]
+            if src != -1 and dst != -1:
+                # found an action
+                parsed_action = SkipBoAction(src, dst)
+                break
+        else:
+            # if no action was found, return an invalid action
+            print(f"\033[31mNo valid action found for action idx {action_idx}. Choices: {shared_info['possible_moves']}\033[0m")
+            parsed_action = SkipBoAction(-1, -1)
+        parsed_actions[0] = parsed_action
+        return parsed_actions
+
 class SkipBoTerminalCondition(DoneCondition[int, SkipBoState]):
     """Determines when episodes end naturally (the game has been won)"""
     def reset(self, agents, initial_state, shared_info):
@@ -521,7 +640,8 @@ class SkipBoTerminalCondition(DoneCondition[int, SkipBoState]):
     def is_done(self, agents: List[int], state: SkipBoState, shared_info: Dict[str, Any]) -> Dict[int, bool]:
         done = self._is_done(agents, state, shared_info)
         if done:
-            print("\033[32mF\033[0m", end="")
+            # print("\033[32mF\033[0m", end="")
+            pass
         return {0: done}
 
 class SkipBoTruncationCondition(DoneCondition[int, SkipBoState]):

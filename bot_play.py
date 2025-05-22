@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import torch
 import numpy as np
 
-from env import AmaltheaActionParser, CallistoObsBuilder, GanymedeObsBuilder, SkipBoAction, GeneralActionParser, IoObsBuilder, SkipBoEngine, SkipBoMutator, SkipBoState, SkipBoTerminalCondition
+from env import AmaltheaActionParser, HimaliaActionParser, HimaliaObsBuilder, CallistoObsBuilder, GanymedeObsBuilder, SkipBoAction, GeneralActionParser, IoObsBuilder, SkipBoEngine, SkipBoMutator, SkipBoState, SkipBoTerminalCondition
 
 from rlgym.api import ObsBuilder, ActionParser
 from rlgym_learn_algos.ppo.discrete_actor import DiscreteFF
@@ -34,9 +34,10 @@ class Agent:
 
     def get_action(self, state: SkipBoState):
         # Convert the observation to the format expected by the model
-        obs = self.obs_builder.build_obs([0], state, {})[0]
+        shared_info = {}
+        obs = self.obs_builder.build_obs([0], state, shared_info)[0]
         out, weights = self.model.get_action([0], [obs])
-        action = self.action_parser.parse_actions({0: out[0]}, state, {})[0]
+        action = self.action_parser.parse_actions({0: out[0]}, state, shared_info)[0]
         print(f"action: {action}")
         return action
 
@@ -85,6 +86,15 @@ configs = {
         obs_builder=CallistoObsBuilder(),
         action_parser=AmaltheaActionParser(),
         description="Entirely forbidden from playing to the discard pile when other moves are available."
+    ),
+    "himalia": AgentConfig(
+        data_path="agents/himalia.pt",
+        input_size=73,
+        n_actions=20,
+        layer_sizes=[256, 256, 256],
+        obs_builder=HimaliaObsBuilder(),
+        action_parser=HimaliaActionParser(),
+        description="Only allowed to pick from a list of possible moves"
     ),
 }
 
