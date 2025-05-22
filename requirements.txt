@@ -3,3 +3,5 @@ numpy==2.2.6
 rlgym-learn==1.0.3
 rlgym-learn-algos==0.1.5
 wandb==0.19.1
+colored=2.3.0
+textual==3.2.0

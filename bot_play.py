@@ -1,23 +1,10 @@
-from dataclasses import dataclass
 import torch
 import numpy as np
-
-from env import AmaltheaActionParser, HimaliaActionParser, HimaliaObsBuilder, CallistoObsBuilder, GanymedeObsBuilder, SkipBoAction, GeneralActionParser, IoObsBuilder, SkipBoEngine, SkipBoMutator, SkipBoState, SkipBoTerminalCondition
-
-from rlgym.api import ObsBuilder, ActionParser
 from rlgym_learn_algos.ppo.discrete_actor import DiscreteFF
-
 from colored import Fore, Style
 
-@dataclass
-class AgentConfig:
-    data_path: str
-    input_size: int
-    n_actions: int
-    layer_sizes: list
-    obs_builder: ObsBuilder
-    action_parser: ActionParser
-    description: str
+from bot_configs import configs, AgentConfig
+from env import SkipBoEngine, SkipBoMutator, SkipBoTerminalCondition, SkipBoState, SkipBoAction
 
 class Agent:
     def __init__(self, config: AgentConfig):
@@ -40,65 +27,6 @@ class Agent:
         action = self.action_parser.parse_actions({0: out[0]}, state, shared_info)[0]
         print(f"action: {action}")
         return action
-
-configs = {
-    "io": AgentConfig(
-        data_path="agents/io/ppo_learner/actor.pt",
-        input_size=33,
-        n_actions=60,
-        layer_sizes=[256, 256, 256],
-        obs_builder=IoObsBuilder(),
-        action_parser=GeneralActionParser(),
-        description="The first agent successfully trained. However, it only knows how to discard."
-    ),
-    "europa": AgentConfig(
-        data_path="agents/europa.pt",
-        input_size=33,
-        n_actions=60,
-        layer_sizes=[256, 256, 256],
-        obs_builder=IoObsBuilder(),
-        action_parser=GeneralActionParser(),
-        description="Eliminated the win reward and rewarded the stock pile more heavily."
-    ),
-    "ganymede": AgentConfig(
-        data_path="agents/ganymede.pt",
-        input_size=34,
-        n_actions=60,
-        layer_sizes=[256, 256, 256],
-        obs_builder=GanymedeObsBuilder(),
-        action_parser=GeneralActionParser(),
-        description="Properly trained for 2 players, and also gets explicitly told when it can play the stock pile card."
-    ),
-    "callisto": AgentConfig(
-        data_path="agents/callisto.pt",
-        input_size=39,
-        n_actions=60,
-        layer_sizes=[256, 256, 256],
-        obs_builder=CallistoObsBuilder(),
-        action_parser=GeneralActionParser(),
-        description="More strongly encouraged to play cards not to the discard pile."
-    ),
-    "amalthea": AgentConfig(
-        data_path="agents/amalthea.pt",
-        input_size=39,
-        n_actions=60,
-        layer_sizes=[256, 256, 256],
-        obs_builder=CallistoObsBuilder(),
-        action_parser=AmaltheaActionParser(),
-        description="Entirely forbidden from playing to the discard pile when other moves are available."
-    ),
-    "himalia": AgentConfig(
-        data_path="agents/himalia.pt",
-        input_size=73,
-        n_actions=20,
-        layer_sizes=[256, 256, 256],
-        obs_builder=HimaliaObsBuilder(),
-        action_parser=HimaliaActionParser(),
-        description="Only allowed to pick from a list of possible moves"
-    ),
-}
-
-
 
 if __name__ == "__main__":
     # offer the user a choice of agent
