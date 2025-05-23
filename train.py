@@ -81,9 +81,9 @@ if __name__ == "__main__":
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
                     project="skipbo",
                     group="rlgym-learn-prod",
-                    run="elara",
+                    run="pasiphae",
                 ),
-                run_name="elara"
+                run_name="pasiphae"
             )
 
     # Create the config that will be used for the run
@@ -101,7 +101,7 @@ if __name__ == "__main__":
                     (PyAnySerdeType.STRING(), PyAnySerdeType.INT())
                 ),
             ),
-            timestep_limit=100_100_000,  # Train for 100M steps
+            timestep_limit=2_000_100_000,  # Train for 2B steps
         ),
         process_config=ProcessConfigModel(
             n_proc=128,  # Number of processes to spawn to run environments. Increasing will use more RAM but should increase steps per second, up to a point
