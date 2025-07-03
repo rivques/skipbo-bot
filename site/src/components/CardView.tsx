@@ -1,7 +1,7 @@
 // CardView.tsx
 import React from "react";
 import "./CardView.css";
-import type { Card } from "./Game";
+import { Card } from "../gameLogic";
 
 export default function CardView({ card, draggable }: { card: Card; draggable: boolean }) {
     if (card === 0) {

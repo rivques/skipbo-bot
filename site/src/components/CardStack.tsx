@@ -1,7 +1,7 @@
 // CardStack.tsx
 import React from "react";
 import CardView from "./CardView";
-import type { Card } from "./Game";
+import { Card } from "../gameLogic";
 
 export default function CardStack({ cards, topDraggable, hideUnlessSkipbo }: { cards: Card[]; topDraggable: boolean; hideUnlessSkipbo?: boolean }) {
     let displayCards = cards;

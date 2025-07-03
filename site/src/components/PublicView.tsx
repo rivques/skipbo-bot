@@ -1,7 +1,7 @@
 // PublicView.tsx
 import React from "react";
 import NamedPile from "./NamedPile";
-import type { PlayerState } from "./Game";
+import { PlayerState } from "../gameLogic";
 
 export default function PublicView({ playerState }: { playerState: PlayerState }) {
     return (

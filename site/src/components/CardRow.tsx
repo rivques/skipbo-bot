@@ -1,7 +1,7 @@
 // CardRow.tsx
 import React from "react";
 import CardStack from "./CardStack";
-import type { Card } from "./Game";
+import { Card } from "../gameLogic";
 
 export default function CardRow({ cards, hideUnlessSkipbo }: { cards: Card[][]; hideUnlessSkipbo?: boolean }) {
     return (
