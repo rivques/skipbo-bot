@@ -14,7 +14,7 @@ class Agent:
             layer_sizes=config.layer_sizes,
             device="cpu"
         )
-        self.model.load_state_dict(torch.load(config.data_path))
+        self.model.load_state_dict(torch.load(config.data_path, map_location="cpu"))
         self.model.eval()
         self.obs_builder = config.obs_builder
         self.action_parser = config.action_parser

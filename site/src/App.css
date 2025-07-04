@@ -36,3 +36,12 @@
     transform: rotate(360deg);
   }
 }
+
+a {
+  color: #0749ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}

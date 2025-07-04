@@ -24,6 +24,13 @@ class SkipBoAction:
     card_source: int # 0: stock pile, 1-5: hand, 6-9: discard piles
     card_destination: int # 0-3: build piles, 4-7: discard piles
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the action to a dictionary."""
+        return {
+            'card_source': self.card_source,
+            'card_destination': self.card_destination
+        }
+
 @dataclass
 class SkipBoLastStep:
     """A class to represent the last step taken in the game."""
@@ -42,6 +49,21 @@ class SkipBoState:
     num_turns: int # the number of turns taken so far
     invalid_actions_count: int # the number of invalid actions taken in a row so far
     last_step: Optional[SkipBoLastStep]
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SkipBoState':
+        """Create a SkipBoState from a dictionary."""
+        player_states = [PlayerState(**ps) for ps in data['player_states']]
+        return cls(
+            player_states=player_states,
+            current_player=data['current_player'],
+            build_piles=data['build_piles'],
+            draw_pile=data['draw_pile'],
+            completed_build_piles=data['completed_build_piles'],
+            num_turns=data['num_turns'],
+            invalid_actions_count=data['invalid_actions_count'],
+            last_step=SkipBoLastStep(**data['last_step']) if data.get('last_step') else None
+        )
 
 class SkipBoEngine(TransitionEngine[int, SkipBoState, SkipBoAction]):
     """A class to represent the game engine."""

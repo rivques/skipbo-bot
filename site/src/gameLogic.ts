@@ -75,12 +75,18 @@ export function isActionValid(
             return source_value === dest_value + 1;
         }
     } else if (card_destination >= 4 && card_destination <= 7) {
-        return card_source >= 1 && card_source <= 5 && source_value != 0;
+        return card_source >= 1 && card_source <= 5 && source_value !== 0;
     } else {
         return false; // invalid destination
     }
 }
 
+function shuffle(array: Card[]): void {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
 
 export function createBaseState(numPlayers: number = 2, stock_pile_size: number = 20): SkipBoState {
     let draw_pile: Card[] = [];
@@ -91,7 +97,7 @@ export function createBaseState(numPlayers: number = 2, stock_pile_size: number 
         draw_pile.push(13); // add skipbo cards
     }
     // shuffle the draw pile
-    draw_pile = draw_pile.sort(() => Math.random() - 0.5);
+    shuffle(draw_pile);
 
     const player_states: PlayerState[] = [];
     for (let i = 0; i < numPlayers; i++) {
@@ -117,6 +123,97 @@ export function createBaseState(numPlayers: number = 2, stock_pile_size: number 
     return state
 }
 
+function drawCards(state: SkipBoState, playerId: number): void {
+    const ps = state.player_states[playerId];
+    const reshuffleNeeded = ps.hand.filter(card => card === 0).length > state.draw_pile.length;
+    if (reshuffleNeeded) {
+        // reshuffle the completed build piles into the draw pile
+        state.draw_pile.push(...state.completed_build_piles);
+        state.completed_build_piles = [];
+        
+        shuffle(state.draw_pile);
+    }
+
+    // draw cards from the draw pile to fill the hand
+    for (let i = 0; i < 5; i++) {
+        if (ps.hand[i] === 0) {
+            if (state.draw_pile.length === 0) {
+                // even though we've reshuffled, we still don't have enough cards
+                break;
+            }
+            ps.hand[i] = state.draw_pile.pop() || 0; // draw a card from the draw pile
+        }
+    }
+}
+
 export function stepState(state: SkipBoState, action: SkipBoAction): SkipBoState {
-    // TODO
+    console.log(`Stepping state for player ${state.current_player} with action:`, action);
+    state.last_step = {
+        action,
+        taken_by: state.current_player,
+        was_valid: true
+    };
+
+    if (!isActionValid(state, action)) {
+        state.last_step.was_valid = false;
+        state.invalid_actions_count++;
+        return state; // invalid action, do nothing
+    } else {
+        state.invalid_actions_count = 0; // reset invalid actions count
+    }
+
+    const card_source = action.card_source;
+    const card_destination = action.card_destination;
+
+    const ps = state.player_states[state.current_player];
+
+    let card_value = 0;
+    if (card_source === 0) {
+        // stock pile
+        card_value = ps.stock_pile.pop() || 0;
+    }
+    else if (card_source >= 1 && card_source <= 5) {
+        // hand
+        card_value = ps.hand[card_source - 1] || 0;
+        ps.hand[card_source - 1] = 0; // remove the card from hand
+    }
+    else if (card_source >= 6 && card_source <= 9) {
+        card_value = ps.discard_piles[card_source - 6].pop() || 0;
+    }
+
+    // move card to destination
+    if (card_destination >= 0 && card_destination <= 3) {
+        state.build_piles[card_destination].push(card_value);
+    } else if (card_destination >= 4 && card_destination <= 7) {
+        ps.discard_piles[card_destination - 4].push(card_value);
+    }
+
+    // game maintenance
+    // remove a completed build pile
+    if (card_destination <= 3 && state.build_piles[card_destination].length === 12) {
+        state.completed_build_piles.push(...state.build_piles[card_destination]);
+        state.build_piles[card_destination] = [];
+    }
+
+    // draw cards if needed
+    if (ps.hand.filter(card => card === 0).length === 5) {
+        drawCards(state, state.current_player);
+    }
+
+    // end the turn if needed
+    if (card_destination >=4 && card_destination <= 7) {
+        // discard pile, end turn
+        state.current_player = (state.current_player + 1) % state.player_states.length;
+        state.num_turns++;
+
+        // draw cards for the next player
+        drawCards(state, state.current_player);
+    }
+
+    return {...state, last_step: state.last_step }; // return a new state object to trigger re-render
+}
+
+export function isGameOver(state: SkipBoState): boolean {
+    // check if any player has no cards in their stock pile
+    return state.player_states.some(ps => ps.stock_pile.length === 0);
 }
