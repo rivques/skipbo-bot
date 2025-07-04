@@ -2,7 +2,7 @@
 Using reinforcement learning to play [Skip-Bo](https://en.wikipedia.org/wiki/Skip-Bo).
 
 ## Usage
-Visit the website at [skipbo.rivques.dev](https://skipbo.rivques.dev) to play against the bot.
+Visit the website at [skipbo-bot.rivques.hackclub.app](https://skipbo-bot.rivques.hackclub.app) to play against the bot.
 
 ## Development
 To run locally, clone the repo, then:
